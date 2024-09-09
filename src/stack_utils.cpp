@@ -1,4 +1,5 @@
 #include <cstring>
+#include <elfio/elfio.hpp>
 
 #include "stack_utils.hpp"
 
@@ -15,16 +16,16 @@ size_t getArgsSize(const char *const args[], size_t &count) {
     return argsSize;
 }
 
-size_t getAuxvSize(const Elf64_auxv_t* auxv, size_t &count) {
+size_t getAuxvSize(const ELFIO::Elf64_auxv* auxv, size_t &count) {
     size_t argsSize = 0;
     count = 0;
 
-    for (const Elf64_auxv_t* auxp = auxv; auxp->a_type != AT_NULL; auxp++) {
+    for (const ELFIO::Elf64_auxv* auxp = auxv; auxp->a_type != ELFIO::AT_NULL; auxp++) {
         switch (auxp->a_type) {
-        case AT_RANDOM:
+            case ELFIO::AT_RANDOM:
             argsSize += 16; // TODO get rid of magic number
             break;
-        case AT_PLATFORM:
+            case ELFIO::AT_PLATFORM:
             argsSize += strlen(reinterpret_cast<char *>(auxp->a_un.a_val)) + 1;
             break;
         default:
@@ -37,15 +38,23 @@ size_t getAuxvSize(const Elf64_auxv_t* auxv, size_t &count) {
 
     return argsSize;
 }
+
+const ELFIO::Elf64_auxv *getAuxv(char **envp) {
+    while(*envp++);
+
+    return reinterpret_cast<const ELFIO::Elf64_auxv *>(envp);
+}
 } // namespace
 
 namespace elfLoader {
-StackData::StackData(const char *const argv[], const char *const envp[], const Elf64_auxv_t* auxv) {
+StackData::StackData(const char *argv[], char *envp[]) : 
+    m_argv(argv), m_envp(envp), m_auxv(::getAuxv(envp)) {
+
     m_argsSize = 0;
 
-    m_argsSize += ::getArgsSize(argv, m_argCount);
-    m_argsSize += ::getArgsSize(envp, m_envCount);
-    m_argsSize += ::getAuxvSize(auxv, m_auxCount);
+    m_argsSize += ::getArgsSize(m_argv, m_argCount);
+    m_argsSize += ::getArgsSize(m_envp, m_envCount);
+    m_argsSize += ::getAuxvSize(m_auxv, m_auxCount);
 
     // round value
     m_argsSize = (m_argsSize + 7) / 8;
