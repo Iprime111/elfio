@@ -1,8 +1,8 @@
 #ifndef ELF_LOADER_HPP_
 #define ELF_LOADER_HPP_
 
-#include <cstdint>
 #include <elfio/elfio.hpp>
+#include <sys/mman.h>
 
 #include "stack_utils.hpp"
 
@@ -15,22 +15,23 @@ class ElfLoader {
 
     void loadElf(const std::string &path, size_t stackSize = kDefaultStackSize);
 
-    void executeElf();
-
-    bool isLoaded() const { return m_isLoaded; }
-
   private:
     void readElfFile(const std::string &path);
+    int  openElfFile(const std::string &path);
 
-    uint8_t *openElfFile(const std::string &path);
+    void parseSegments();
 
-    void buildStack(uint8_t *stackAllocation, size_t stackDataSize, size_t stackBottomSize);
+    void runTrampoline         ();
+    void cleanupLoaderResources();
 
-    bool m_isLoaded = false;
-    int  m_elfFd    = -1;
+    void mapSegments(int elfFd);
+    void mapPtLoadSegment(const std::unique_ptr<ELFIO::segment> &segment, int elfFd);
 
     ELFIO::elfio m_elfReader = {};
-    uint8_t *m_elfContent    = nullptr;
+
+    int               m_stackProtection  = PROT_NONE;
+    ELFIO::Elf64_Addr m_loadStartAddress = 0;
+    ELFIO::Elf64_Addr m_loadEndAddress   = 0;
 
     StackData m_stackBottom;
 };
